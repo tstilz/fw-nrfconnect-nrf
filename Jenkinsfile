@@ -11,12 +11,18 @@ def getRepoURL() {
   }
 }
 
-
 def getPRHEADSHA() {
   dir('nrf') {
     sh "git fetch $GIT_URL refs/pull/\$(echo -n $GIT_BRANCH | sed 's/PR-//')/head"
     def GH_PR_HEAD_SHA = sh (script: "git rev-parse FETCH_HEAD | tr -d '\\n' ", returnStdout: true)
     return "$GH_PR_HEAD_SHA"
+  }
+}
+
+def getPRnum() {
+  dir('nrf') {
+    def PR_NUM = sh (script: "echo -n $GIT_BRANCH | sed 's/PR-//' | tr -d '\\n' ", returnStdout: true)
+    return "$PR_NUM"
   }
 }
 
@@ -141,6 +147,7 @@ pipeline {
                   COMMIT_RANGE = "origin/${env.CHANGE_TARGET}..origin/${env.BRANCH_NAME}"
                   COMPLIANCE_REPORT_ARGS = "-p $CHANGE_ID -S ${getPRHEADSHA()} -g"
                   COMPLIANCE_ARGS = "$COMPLIANCE_ARGS $COMPLIANCE_REPORT_ARGS"
+
                   println "Building a PR: ${COMMIT_RANGE}"
                 }
                 else if (env.TAG_NAME) {
@@ -180,6 +187,9 @@ pipeline {
           else {
             PR_NAME = "$BRANCH_NAME"
           }
+          
+          sh "git push -f origin HEAD:refs/PR/${getPRnum()}"
+
           def projs = [:]
           env.DOWNSTREAM_PROJECTS.split(',').each {
             projs["${it}"] = {
@@ -187,6 +197,7 @@ pipeline {
                                                                              string(name: 'API_URL', value: "${getRepoURL()}"),
                                                                              string(name: 'API_COMMIT', value: "$GIT_COMMIT"),
                                                                              string(name: 'API_PR_NAME', value: "$PR_NAME"),
+                                                                             string(name: 'API_PR_NUM', value: "${getPRnum()}"),
                                                                              string(name: 'API_RUN_NUMBER', value: "$BUILD_NUMBER")]
             }
           }
